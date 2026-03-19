@@ -66,8 +66,6 @@ ChatGPT | 很 | 厉害
 
 ### 问题1：词汇表太大
 
-中文有5万+常用汉字，英文有17万+单词。
-
 如果每个词都是一个独立的"token"：
 - 词汇表 = 无限大 💥
 - AI永远学不完
@@ -84,8 +82,6 @@ ChatGPT | 很 | 厉害
 
 ## 子词(Subword)的核心思想
 
-### 类比：乐高积木
-
 - **中文**：偏旁部首 → 汉字 → 词语
 - **英文**：字母 → 词根 → 单词
 
@@ -99,7 +95,6 @@ ChatGPT | 很 | 厉害
 | unhappy | un + happy |
 | playing | play + ing |
 | 人工智能 | 人工 + 智能 |
-| ChatGPT | Chat + G + PT |
 
 ---
 
@@ -133,6 +128,10 @@ l o w | l o w e r | l o w e s t
 n e w | n e w e r | n e w e s t
 ```
 
+---
+
+## BPE算法：具体例子
+
 ### 第2步：统计频率
 
 | 字符对 | 频率 |
@@ -142,6 +141,10 @@ n e w | n e w e r | n e w e s t
 | o + w | 3次 |
 | w + e | 2次 |
 
+---
+
+## BPE算法：具体例子
+
 ### 第3步：合并最频繁的
 
 合并 "er"（频率最高）：
@@ -149,6 +152,10 @@ n e w | n e w e r | n e w e s t
 l o w | l o w er | l o w er s t
 n e w | n e w er | n e w er s t
 ```
+
+---
+
+## BPE算法：具体例子
 
 ### 第4步：继续合并
 
@@ -182,15 +189,7 @@ n e w | n e w er | n e w er s t
 
 ---
 
-## 真实案例：GPT的Tokenizer
-
-### GPT-4使用什么Tokenizer？
-
-**cl100k_base**（基于BPE改进）
-
-**词汇表大小**：100,000 tokens
-
-### 不同语言的Token数量
+## 不同语言的Token数量
 
 | 内容 | Token数量 |
 |------|----------|
@@ -215,6 +214,10 @@ AI按token收费：
 **省钱技巧**：
 - 中文 → 尽量用简洁表达
 - 英文 → 相对更省token
+
+---
+
+## Tokenizer对AI的影响
 
 ### 影响2：代码处理
 
