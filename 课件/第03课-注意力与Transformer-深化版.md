@@ -90,7 +90,7 @@ style: |
 
 - `Query`：我现在在找什么
 - `Key`：我这里有哪些线索
-- `Value`：如果我被关注，我真正提供什么内容
+- `Value`：根据被关注的线索，我真正提供什么内容
 
 当 `Query` 和某个 `Key` 更匹配时，对应的 `Value` 权重就更高。
 
@@ -100,21 +100,25 @@ style: |
 
 $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
 
-扫盲版理解：
-
 1. `QK^T` 先算相关性分数
 2. `softmax` 把分数变成权重
 3. 用权重对 `V` 做加权求和
 
 除以 $\sqrt{d_k}$ 的作用是避免分数过大，导致 softmax 过于极端。
 
+---
+
+## Self-Attention 公式
+
 <center>
-<img src="../images/attention_heatmap.png" width="54%">
+<img src="../images/attention_heatmap.png" width="60%">
 </center>
 
 ---
 
 ## 为什么 Multi-Head 有用
+
+> 也就是同时使用多个 Self-Attention 进行处理
 
 一个头只能看到一种“相关性”。
 
@@ -162,7 +166,7 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 - Decoder-Only：生成任务，如 GPT
 - Encoder-Decoder：输入输出结构明显的任务，如翻译
 
-扫盲课主线里，后续默认以 Decoder-Only LLM 为核心直觉。
+目前业界，通常以 Decoder-Only LLM 为核心直觉。
 
 </div>
 </div>
