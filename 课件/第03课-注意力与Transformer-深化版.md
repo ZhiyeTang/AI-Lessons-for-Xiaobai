@@ -189,7 +189,7 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 ## KV Cache 直观图
 
 <center>
-<img src="../images/kv_cache.png" width="82%">
+<img src="../images/kv_cache.png" width="60%">
 </center>
 
 一句话理解：
