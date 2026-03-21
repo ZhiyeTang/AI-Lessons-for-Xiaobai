@@ -24,7 +24,7 @@ style: |
 
 <!-- _class: lead -->
 
-# AI 扫盲课 · 深化版
+# 小白AI课
 
 ## 第3课：注意力与 Transformer
 
@@ -108,6 +108,68 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 
 ---
 
+## kernel 视角：attention 像数据依赖的核平滑
+
+如果先忽略 softmax 前后的细节，attention 可以看成：
+
+- 用 query 和 key 算相似度
+- 再用相似度对 values 做加权平均
+
+这和核方法里的 kernel smoother 很像：
+
+$$\text{output}(q) = \sum_j \alpha_j(q) v_j$$
+
+其中权重 $\alpha_j(q)$ 由相似度决定。
+
+所以从研究味的角度，attention 可以被理解成：
+
+> 一个输入依赖、内容依赖、可学习的核回归机制。
+
+---
+
+## Q / K / V 从哪里来
+
+如果输入表示矩阵是：
+
+$$X \in \mathbb{R}^{n \times d_{\text{model}}}$$
+
+那么注意力层通常先做三次线性投影：
+
+$$Q = XW_Q,\quad K = XW_K,\quad V = XW_V$$
+
+其中：
+
+- $W_Q \in \mathbb{R}^{d_{\text{model}} \times d_k}$
+- $W_K \in \mathbb{R}^{d_{\text{model}} \times d_k}$
+- $W_V \in \mathbb{R}^{d_{\text{model}} \times d_v}$
+
+所以 Q、K、V 不是“天然存在”的三样东西，而是同一份输入经过不同线性变换后的三种视角。
+
+---
+
+## 为什么说 attention 也是一种联想记忆
+
+如果把：
+
+- $K$ 看成可寻址索引
+- $V$ 看成存储内容
+
+那么 query 的作用就是用内容相似性去“读内存”。
+
+这时 attention 的计算本质上变成：
+
+> 用 query 在 key-value 存储中做一次软检索，再返回加权内容。
+
+所以它同时像：
+
+- 核回归
+- 可微检索
+- 联想记忆
+
+这也是为什么 attention 在语言、视觉和多模态里都如此通用。
+
+---
+
 ## Self-Attention 公式
 
 <center>
@@ -135,6 +197,42 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 
 ---
 
+## Multi-Head 的矩阵形式
+
+第 $h$ 个头可以写成：
+
+$$\text{head}_h = \text{Attention}(XW_Q^{(h)}, XW_K^{(h)}, XW_V^{(h)})$$
+
+最后把所有头拼接起来：
+
+$$\text{MultiHead}(X) = \text{Concat}(\text{head}_1,\dots,\text{head}_H)W_O$$
+
+这页最重要的结论是：
+
+- 每个头有自己的一套投影矩阵
+- 所以不同头可以学不同类型的相关性
+- 最后再统一映射回模型主维度
+
+---
+
+## 多头的更深直觉：分块子空间里的并行核
+
+从更研究化的角度，多头并不只是“多看几眼”。
+
+它更像是：
+
+- 把表示空间投影到多个子空间
+- 在每个子空间里各自计算一套 attention kernel
+- 再把这些局部结果合并
+
+所以 multi-head 的价值在于：
+
+> 允许模型在不同几何子空间里学习不同的相似性结构。
+
+这比单头的全局单一相似度函数表达力更强。
+
+---
+
 ## Transformer 做了什么
 
 把注意力机制组织成一个可堆叠的大系统：
@@ -145,6 +243,42 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 - 多层堆叠
 
 这使得模型可以逐层形成更抽象的表示。
+
+---
+
+## Transformer 还能怎么看：token mixer + channel mixer
+
+很多研究会把一个 Transformer block 粗略拆成两部分：
+
+- Attention：在 token 之间混合信息
+- Feed Forward：在通道维度上做非线性变换
+
+也就是：
+
+- attention 负责“谁和谁交互”
+- MLP 负责“每个位置内部如何重编码”
+
+这个视角很有用，因为它解释了为什么：
+
+> Transformer 不只是注意力堆叠，而是“跨 token 交互”和“位置内变换”交替进行。
+
+---
+
+## 为什么 Self-Attention 计算量高
+
+如果序列长度是 $n$，那么相关性矩阵 $QK^T$ 的大小就是：
+
+$$n \times n$$
+
+这意味着核心复杂度里有一项会随序列长度近似平方增长：
+
+$$O(n^2)$$
+
+所以长上下文的难点不只是“记忆更多内容”，还有：
+
+> 注意力矩阵本身会迅速变大。
+
+这也是后来各种稀疏注意力、线性注意力和 KV Cache 优化很重要的原因。
 
 ---
 

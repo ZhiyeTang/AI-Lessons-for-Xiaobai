@@ -1,4 +1,4 @@
-# AI扫盲课 - 10课深化版
+# 小白AI课 - 10课版
 
 用大白话讲清楚大模型、后训练、多模态与图像生成的 10 节课件。
 
@@ -84,4 +84,3 @@ images/
 ## 仓库
 
 https://github.com/ZhiyeTang/AI-Lessons-for-Xiaobai
-
