@@ -4,8 +4,9 @@ theme: default
 paginate: true
 backgroundColor: #fff
 style: |
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
   section {
-    font-family: "Noto Sans SC", "Source Han Sans", "WenQuanYi Micro Hei", sans-serif;
+    font-family: "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Source Han Sans CN", "Microsoft YaHei", "PingFang SC", "Heiti SC", "SimHei", sans-serif;
   }
   h1 { color: #1e3a5f; }
   h2 { color: #2c5282; }
@@ -26,9 +27,9 @@ style: |
 
 # 小白AI课
 
-## 第3课：注意力与 Transformer
+## 第3课：Transformer 机制与 KV Cache
 
-> 模型如何利用上下文，而不是只会机械续写
+> 从多头注意力、Block 结构到自回归推理优化
 
 ---
 
@@ -39,11 +40,11 @@ style: |
 已学：
 
 - 第1课：概率与语言模型
-- 第2课：Tokenizer 与向量表示
+- 第2课：从文本到 Transformer 输入
 
 本课：
 
-- 第3课：注意力与 Transformer
+- 第3课：Transformer 机制与 KV Cache
 
 下节：
 
@@ -55,126 +56,51 @@ style: |
 
 ## 上节回顾
 
-我们已经知道：
+上节我们已经把输入送进了 Transformer：
 
-- 文本会先被切成 token
-- token 会变成向量
-- 位置也会被编码进去
+- 文本先变成 token ids
+- token ids 变成表示矩阵 $X$
+- 位置矩阵 $P$ 加进去，得到 $\tilde X = X + P$
+- 然后 $\tilde X$ 生成 $Q/K/V$，做第一次 attention
 
-现在还差最关键的一步：
+这节不再问“输入从哪里来”，而是问：
 
-**模型怎么决定当前这个 token 应该看谁？**
-
----
-
-## 一个典型例子
-
-> 小明把苹果给小华，因为它很甜。
-
-读到 `它` 时，人类会自然联想到 `苹果`。
-
-这说明理解不是只看当前词，而是要：
-
-- 回头看前文
-- 给相关词更高权重
-
-这就是注意力机制的直觉。
+**一个 Transformer block 内部到底怎样工作，为什么推理还能被工程化优化？**
 
 ---
 
-## Q / K / V 的大白话解释
+## 本节主线
 
-### Query / Key / Value
-
-可以把它理解成三句话：
-
-- `Query`：我现在在找什么
-- `Key`：我这里有哪些线索
-- `Value`：根据被关注的线索，我真正提供什么内容
-
-当 `Query` 和某个 `Key` 更匹配时，对应的 `Value` 权重就更高。
+1. Transformer 的其他组成部分
+2. multi-head 为什么比单头更强
+3. 残差连接
+4. KV Cache 为什么能避免重复计算
 
 ---
 
-## Self-Attention 公式
+## 一个 Transformer block 里到底有什么
 
-$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
-
-1. `QK^T` 先算相关性分数
-2. `softmax` 把分数变成权重
-3. 用权重对 `V` 做加权求和
-
-除以 $\sqrt{d_k}$ 的作用是避免分数过大，导致 softmax 过于极端。
-
----
-
-## kernel 视角：attention 像数据依赖的核平滑
-
-如果先忽略 softmax 前后的细节，attention 可以看成：
-
-- 用 query 和 key 算相似度
-- 再用相似度对 values 做加权平均
-
-这和核方法里的 kernel smoother 很像：
-
-$$\text{output}(q) = \sum_j \alpha_j(q) v_j$$
-
-其中权重 $\alpha_j(q)$ 由相似度决定。
-
-所以从研究味的角度，attention 可以被理解成：
-
-> 一个输入依赖、内容依赖、可学习的核回归机制。
-
----
-
-## Q / K / V 从哪里来
-
-如果输入表示矩阵是：
-
-$$X \in \mathbb{R}^{n \times d_{\text{model}}}$$
-
-那么注意力层通常先做三次线性投影：
-
-$$Q = XW_Q,\quad K = XW_K,\quad V = XW_V$$
-
-其中：
-
-- $W_Q \in \mathbb{R}^{d_{\text{model}} \times d_k}$
-- $W_K \in \mathbb{R}^{d_{\text{model}} \times d_k}$
-- $W_V \in \mathbb{R}^{d_{\text{model}} \times d_v}$
-
-所以 Q、K、V 不是“天然存在”的三样东西，而是同一份输入经过不同线性变换后的三种视角。
-
----
-
-## 为什么说 attention 也是一种联想记忆
-
-如果把：
-
-- $K$ 看成可寻址索引
-- $V$ 看成存储内容
-
-那么 query 的作用就是用内容相似性去“读内存”。
-
-这时 attention 的计算本质上变成：
-
-> 用 query 在 key-value 存储中做一次软检索，再返回加权内容。
-
-所以它同时像：
-
-- 核回归
-- 可微检索
-- 联想记忆
-
-这也是为什么 attention 在语言、视觉和多模态里都如此通用。
-
----
-
-## Self-Attention 公式
+<div class="columns">
+<div>
 
 <center>
-<img src="../images/attention_heatmap.png" width="60%">
+  <img src="../images/transformer_arch.png" width="68%">
 </center>
+
+</div>
+<div>
+
+把注意力机制组织成一个可堆叠的大系统：
+
+- Multi-Head Attention
+- Feed Forward
+- 残差连接
+- 多层堆叠
+
+这使得模型可以逐层形成更抽象的表示。
+
+</div>
+</div>
 
 ---
 
@@ -197,113 +123,10 @@ $$Q = XW_Q,\quad K = XW_K,\quad V = XW_V$$
 
 ---
 
-## Multi-Head 的矩阵形式
+## 残差连接为什么重要
 
-第 $h$ 个头可以写成：
-
-$$\text{head}_h = \text{Attention}(XW_Q^{(h)}, XW_K^{(h)}, XW_V^{(h)})$$
-
-最后把所有头拼接起来：
-
-$$\text{MultiHead}(X) = \text{Concat}(\text{head}_1,\dots,\text{head}_H)W_O$$
-
-这页最重要的结论是：
-
-- 每个头有自己的一套投影矩阵
-- 所以不同头可以学不同类型的相关性
-- 最后再统一映射回模型主维度
-
----
-
-## 多头的更深直觉：分块子空间里的并行核
-
-从更研究化的角度，多头并不只是“多看几眼”。
-
-它更像是：
-
-- 把表示空间投影到多个子空间
-- 在每个子空间里各自计算一套 attention kernel
-- 再把这些局部结果合并
-
-所以 multi-head 的价值在于：
-
-> 允许模型在不同几何子空间里学习不同的相似性结构。
-
-这比单头的全局单一相似度函数表达力更强。
-
----
-
-## Transformer 做了什么
-
-把注意力机制组织成一个可堆叠的大系统：
-
-- Multi-Head Attention
-- Feed Forward
-- Residual / LayerNorm
-- 多层堆叠
-
-这使得模型可以逐层形成更抽象的表示。
-
----
-
-## Transformer 还能怎么看：token mixer + channel mixer
-
-很多研究会把一个 Transformer block 粗略拆成两部分：
-
-- Attention：在 token 之间混合信息
-- Feed Forward：在通道维度上做非线性变换
-
-也就是：
-
-- attention 负责“谁和谁交互”
-- MLP 负责“每个位置内部如何重编码”
-
-这个视角很有用，因为它解释了为什么：
-
-> Transformer 不只是注意力堆叠，而是“跨 token 交互”和“位置内变换”交替进行。
-
----
-
-## 为什么 Self-Attention 计算量高
-
-如果序列长度是 $n$，那么相关性矩阵 $QK^T$ 的大小就是：
-
-$$n \times n$$
-
-这意味着核心复杂度里有一项会随序列长度近似平方增长：
-
-$$O(n^2)$$
-
-所以长上下文的难点不只是“记忆更多内容”，还有：
-
-> 注意力矩阵本身会迅速变大。
-
-这也是后来各种稀疏注意力、线性注意力和 KV Cache 优化很重要的原因。
-
----
-
-## Transformer 架构图
-
-<div class="columns">
-<div>
-
-<center>
-<img src="../images/transformer_arch.png" width="68%">
-</center>
-
-</div>
-<div>
-
-常见三类用法：
-
-- Encoder-Only：理解任务，如 BERT
-- Decoder-Only：生成任务，如 GPT
-- Encoder-Decoder：输入输出结构明显的任务，如翻译
-
-目前业界，通常以 Decoder-Only LLM 为核心直觉。
-
-</div>
-</div>
+【闪客】深入解读 Kimi 爆火论文，马斯克都转了！到底什么是注意力残差？白话解读哟
+https://www.bilibili.com/video/BV1MMw1zaESW/?share_source=copy_web&vd_source=4b7c9295aa3879aa80e96dcfa95562c3&t=55
 
 ---
 
@@ -334,12 +157,13 @@ $$O(n^2)$$
 
 ## 本节小结
 
-> 第3课讲的是“模型如何利用上下文”。
+> 第3课讲的是“Transformer block 怎样工作，以及推理怎样被优化”。
 
-- 注意力机制让模型不再只会机械按顺序扫过去
-- Q / K / V 提供了“查找线索 -> 汇总信息”的计算框架
-- Transformer 把注意力扩展成现代大模型的基础架构
-- KV Cache 解释了推理优化的一个关键直觉
+- attention 可以看成一次可微的联想检索
+- multi-head 让模型在多个子空间里并行建模相关性
+- Transformer block 是 token 交互和位置内重编码的交替堆叠
+- causal mask 把 block 变成了自回归生成器
+- KV Cache 解释了为什么推理时可以复用历史计算
 
 ---
 
@@ -369,4 +193,4 @@ $$O(n^2)$$
 
 **Q&A 时间**
 
-第3课：注意力与 Transformer
+第3课：Transformer 机制与 KV Cache

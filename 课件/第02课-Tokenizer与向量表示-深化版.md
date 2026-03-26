@@ -4,8 +4,9 @@ theme: default
 paginate: true
 backgroundColor: #fff
 style: |
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
   section {
-    font-family: "Noto Sans SC", "Source Han Sans", "WenQuanYi Micro Hei", sans-serif;
+    font-family: "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "Source Han Sans CN", "Microsoft YaHei", "PingFang SC", "Heiti SC", "SimHei", sans-serif;
   }
   code {
     font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Code", monospace;
@@ -18,15 +19,20 @@ style: |
     padding: 14px 18px;
     line-height: 1.6;
   }
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
 ---
 
 <!-- _class: lead -->
 
 # 小白AI课
 
-## 第2课：Tokenizer 与向量表示
+## 第2课：从文本到 Transformer 输入
 
-> 离散文本如何进入模型，顺便补齐位置编码
+> 文本如何变成 token 序列、表示矩阵，并第一次进入注意力
 
 ---
 
@@ -40,11 +46,11 @@ style: |
 
 本课：
 
-- 第2课：Tokenizer 与向量表示
+- 第2课：从文本到 Transformer 输入
 
 下节：
 
-- 第3课：注意力与 Transformer
+- 第3课：Transformer 机制与 KV Cache
 
 </div>
 
@@ -56,9 +62,9 @@ style: |
 
 > 模型本质上是在预测下一个 token。
 
-但还有一个前提没讲：
+但还有一个更完整的问题没讲：
 
-**“token” 到底是什么？模型又怎么把文字变成数字？**
+**文本到底是怎么变成 Transformer 能处理的矩阵输入的？**
 
 ---
 
@@ -66,10 +72,41 @@ style: |
 
 今天把这条链补完整：
 
-1. 文本先被切成 token
-2. token id 再映射成向量
-3. 向量之间形成语义空间
-4. 位置编码告诉模型顺序信息
+1. 先看 Transformer 在处理什么
+2. 再看 attention 到底想解决什么
+3. 文本如何被切成 token 并映射成矩阵
+4. 位置编码如何让顺序进入计算
+5. 最后把这些表示送进注意力
+
+---
+
+## 先看全景：Transformer 在吃什么输入
+
+<div class="columns">
+<div>
+
+<center>
+  <img src="../images/transformer_arch.png" width="68%">
+</center>
+
+</div>
+<div>
+
+可以先把大模型的一次前向传播理解成：
+
+- 文本先被切成 token ids
+- token ids 变成表示矩阵
+- 再加上位置矩阵
+- 然后进入一层层 Transformer block
+
+目前业界最常见的核心直觉是 Decoder-Only。
+
+所以本课的问题可以压缩成一句话：
+
+> 原始文字，究竟怎么变成 Transformer 里的输入矩阵？
+
+</div>
+</div>
 
 ---
 
@@ -159,20 +196,30 @@ Embedding 层的价值在于：
 
 ## Embedding 的矩阵视角
 
-如果词表大小是 $V$，向量维度是 $d$，那 Embedding 层本质上就是一个矩阵：
+<div class="columns">
 
-$$E \in \mathbb{R}^{V \times d}$$
+<div>
 
-某个 token id 为 $i$ 时，取出的向量就是：
+<center>
+  <img src="../images/embedding_matrix_grid.png" height="390">
+</center>
 
-$$x_i = E[i]$$
+</div>
 
-也可以理解成：
+<div>
 
-- 输入是 one-hot 向量 $e_i \in \mathbb{R}^{V}$
-- 输出是 $x_i = e_i^T E$
+如果词表大小是 $V$，向量维度是 $d$，那 Embedding 层本质上就是一个矩阵
+$E \in \mathbb{R}^{V \times d}$。
+
+本质上：输入 one-hot 向量 $e_i$，就是从矩阵里选出第 $i$ 行，所以
+
+$$x_i = e_i^T E = E[i]$$
 
 这说明 Embedding 不是魔法，而是“查表 + 线性代数”。
+
+</div>
+
+</div>
 
 ---
 
@@ -182,14 +229,7 @@ $$x_i = E[i]$$
 
 > 把离散符号嵌入到一个可微的连续几何空间里。
 
-一旦进入这个空间，模型就可以使用：
-
-- 线性变换
-- 点积
-- 范数
-- 低秩结构
-
-来表达语义关系。
+一旦进入这个空间，模型就可以使用**线性变换、范数**等数学工具来表达语义关系。
 
 所以 embedding 的真正价值是：
 
@@ -212,60 +252,23 @@ $$\cos(\theta) = \frac{x \cdot y}{\|x\|\|y\|}$$
 
 ---
 
-## 为什么余弦相似度常常比欧氏距离更常用
+## 语义空间里，角度和距离怎么看
 
-在高维空间里，向量长度会受到很多因素影响：
+<div class="columns">
+<div>
 
-- 词频
-- 训练阶段的缩放
-- 不同层的数值分布
+<center>
+  <img src="../images/semantic_geometry.png">
+</center>
 
-余弦相似度更关注“方向”而不是“绝对长度”：
+</div>
+<div>
 
-$$\mathrm{sim}(x,y) = \frac{x^T y}{\|x\|\|y\|}$$
+图里 `cat` 和 `dog` 既方向接近也距离较近；`car` 的方向分离更明显，所以余弦相似度更低。
 
-所以它更适合回答这个问题：
+</div>
 
-> 这两个表示是不是在表达相近的语义方向？
-
----
-
-## 研究里常讲的各向异性问题
-
-真实训练出来的 embedding 空间，往往不是均匀铺开的。
-
-常见现象是：
-
-- 大量 token 向量集中在某些主方向上
-- 空间并不“球形均匀”
-- 高频 token 常常主导一些公共方向
-
-这类现象有时会被叫做表示空间的各向异性（anisotropy）。
-
-更研究味的直觉是：
-
-> 语义空间往往不是完美平坦的欧氏空间，而是被数据频率和训练目标拉扯过的偏置几何。
-
----
-
-## 谱视角：为什么低维结构会重要
-
-如果把 embedding 矩阵 $E$ 做奇异值分解：
-
-$$E = U\Sigma V^T$$
-
-那常常会看到：
-
-- 少数主奇异值占比较大
-- 说明很多变化主要集中在若干主方向上
-
-这意味着表示空间里常存在某种低维主结构。
-
-从研究视角看，这很重要，因为它解释了：
-
-- 为什么低秩近似常有用
-- 为什么某些方向更承载频率或语义信息
-- 为什么后续层可以在少数主方向上做强变换
+</div>
 
 ---
 
@@ -286,7 +289,7 @@ $$E = U\Sigma V^T$$
 
 ## Position Encoding 的作用
 
-位置编码不是“新词义”，而是给每个 token 一个“地址”。
+位置编码不是“新词义”，而是给每个 token 一个“坐标”。
 
 它解决的是：
 
@@ -294,32 +297,113 @@ $$E = U\Sigma V^T$$
 - 谁在后
 - 相对距离有多远
 
-常见表达方式之一：
+---
 
-$$PE_{(pos,2i)} = \sin(pos/10000^{2i/d})$$
-$$PE_{(pos,2i+1)} = \cos(pos/10000^{2i/d})$$
+## 从矩阵视角看，为什么必须有位置编码
 
-只需要记住它的目的，不必死记公式。
+把一句长度为 $n$ 的序列写成矩阵：
+
+$$
+X=
+\begin{bmatrix}
+x_1^T\\
+x_2^T\\
+\vdots\\
+x_n^T
+\end{bmatrix}
+\in \mathbb{R}^{n\times d}
+$$
+
+这里每一行是一个 token 的 embedding。
 
 ---
 
-## Position Encoding 的数学直觉
+## 从矩阵视角看，为什么必须有位置编码
 
-为什么正弦和余弦会有用？
+如果把序列重新排列成 $\Pi X$，其中 $\Pi$ 是一个置换矩阵，那么没有位置编码时，很多计算只是把行和列一起重排。
 
-- 不同维度使用不同频率
-- 同一个位置会得到一组可区分的周期信号
-- 相邻位置之间会保留连续变化关系
+更直接地说：
 
-这让模型更容易从线性变换里学到：
+> 没有位置编码，模型看到的是“有哪些词在一起”，而不是“这些词按什么顺序排在一起”（顺序对称性）。
 
-- 相对位移
-- 远近关系
-- 顺序模式
+**举个例子**：
+- 输入“你打我”，如果模型的输出是“我很生气”
+- 那么输入“我打你”，只会输出“气生很我”
+- 由位置带来的语义信息被严重丢失了
 
-所以这套设计的关键不在“正弦本身神奇”，而在：
 
-> 它给了模型一个连续、可比较、带相对结构的位置信号。
+---
+
+## 位置编码本质上是在打破这种对称性
+
+$$\tilde X = X + P,\qquad P\in\mathbb{R}^{n\times d}$$
+
+于是模型内部会出现四类相互作用：
+
+- 内容-内容：这个词和那个词语义像不像
+- 内容-位置：这个词出现在这个位置时意味着什么
+- 位置-内容：某个位置更该关注什么内容
+- 位置-位置：两个位置之间的距离和结构关系
+
+所以位置编码真正提供的，不只是“编号”，而是：
+
+> 给序列矩阵加上一个坐标系，让注意力能同时建模“内容”和“排列结构”。
+
+---
+
+## 序列矩阵终于可以进入 attention
+
+到这一步，真正送进 Transformer 的已经不是“词”，而是带位置的表示矩阵：
+
+$$\tilde X = X + P$$
+
+注意力层要解决的核心任务是：
+
+- 回头看前文
+- 找到相关 token
+- 汇总最有用的信息
+
+> 小明把苹果给小华，因为它很甜。
+
+读到 `它` 时，人类会自然联想到 `苹果`。
+
+---
+
+## Self-Attention 的一次矩阵计算
+
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
+
+- $QK^T$ 先算“谁和谁相关”
+- `softmax` 把相关性变成权重
+- 再用这些权重去加权汇总 $V$
+
+所以注意力做的事可以概括成：
+
+> 对整段序列做一次“按相关性加权的信息汇总”。
+
+---
+
+## Q / K / V 的大白话解释
+
+可以先把它理解成三句话：
+
+- `Query`：我现在在找什么
+- `Key`：我这里有哪些线索
+- `Value`：如果你关注我，我真正提供什么内容
+
+当当前 token 的 `Query` 和某个历史 token 的 `Key` 更匹配时，对应的 `Value` 权重就更高。
+
+---
+
+## attention 可视化直觉
+
+<center>
+  <img src="../images/attention_heatmap.png" width="45%">
+</center>
+
+热力图里的每一行，都可以理解成：
+
+> 当前这个位置，正在把注意力分配给整段序列里的哪些位置。
 
 ---
 
@@ -349,12 +433,13 @@ $$PE_{(pos,2i+1)} = \cos(pos/10000^{2i/d})$$
 原始文本
 -> Tokenizer 切分
 -> token ids
--> Embedding 向量
--> 加上位置信息
--> 送入 Transformer
+-> Embedding 矩阵 X
+-> 加上位置矩阵 P
+-> 得到 X + P
+-> 进入 Attention / Transformer Block
 ```
 
-前两课加起来，才真正解释了：
+到这一步，我们才真正解释了：
 
 **模型在“猜下一个 token”之前，看到的到底是什么。**
 
@@ -362,29 +447,31 @@ $$PE_{(pos,2i+1)} = \cos(pos/10000^{2i/d})$$
 
 ## 本节小结
 
-> 第2课讲的是“离散文本 -> 连续表示”的完整链条。
+> 第2课讲的是“原始文本 -> Transformer 输入”的完整链条。
 
 - Tokenizer 解决切分和词表规模问题
 - Embedding 让 token 进入连续向量空间
 - 语义空间让“相似概念彼此靠近”
 - Position Encoding 让模型知道顺序和位置
+- Attention 让这份序列表示第一次开始利用上下文
 
 ---
 
 ## 下节预告
 
-### 第3课：注意力与 Transformer
+### 第3课：Transformer 机制与 KV Cache
 
-文字已经被变成向量之后，接下来要回答：
+现在我们已经把输入送进了 Transformer。
 
-**模型怎么利用上下文，决定该关注哪里？**
+下一步要回答：
+
+**Transformer block 内部到底是怎么工作的，推理时又为什么会越来越慢？**
 
 会讲到：
 
-- Query / Key / Value
-- Self-Attention
 - Multi-Head Attention
-- Transformer
+- Residual / LayerNorm / MLP
+- Causal Mask
 - KV Cache
 
 ---
@@ -395,4 +482,4 @@ $$PE_{(pos,2i+1)} = \cos(pos/10000^{2i/d})$$
 
 **Q&A 时间**
 
-第2课：Tokenizer 与向量表示
+第2课：从文本到 Transformer 输入
